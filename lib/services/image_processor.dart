@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:image/image.dart';
-import 'package:uuid/uuid.dart';
+import 'package:path_provider/path_provider.dart';
 
 enum ImageProcessingMethod {
   blurringMean,
@@ -26,23 +26,49 @@ class ImageProcessor {
   loadImage(String imagePath) async {
     _initialImage = await decodeImageFile(imagePath);
     if (_initialImage != null) {
-      _initialImageFile =
-          await File(const Uuid().v4()).writeAsBytes(encodePng(_initialImage!));
+      await clearInitialImages();
+      final Directory dir = await getTemporaryDirectory();
+      _initialImageFile = await File(
+              '${dir.path}initial_image_${DateTime.now().millisecondsSinceEpoch}.jpg')
+          .writeAsBytes(encodePng(_initialImage!));
     }
   }
 
-  clear() {
+  processImage(ImageProcessingMethod method) async {
+    final Directory dir = await getTemporaryDirectory();
+    _handleImageProcessingMethod(method);
+    if (_processedImage != null) {
+      clearProcessedImages();
+      _processedImageFile = await File(
+              '${dir.path}processed_image_${DateTime.now().millisecondsSinceEpoch}.jpg')
+          .writeAsBytes(encodePng(_processedImage!));
+    }
+  }
+
+  clear() async {
     _initialImage = null;
     _initialImageFile = null;
     _processedImage = null;
     _processedImageFile = null;
+    await clearInitialImages();
+    await clearProcessedImages();
   }
 
-  processImage(ImageProcessingMethod method) async {
-    _handleImageProcessingMethod(method);
-    if (_processedImage != null) {
-      _processedImageFile = await File(const Uuid().v4())
-          .writeAsBytes(encodePng(_processedImage!));
+  clearInitialImages() async {
+    final dir = await getTemporaryDirectory();
+    for (var file in dir.listSync()) {
+      if (file is File && file.path.contains('initial_image')) {
+        await file.delete();
+      }
+    }
+  }
+
+  clearProcessedImages() async {
+    final dir = await getTemporaryDirectory();
+    for (var file in dir.listSync()) {
+      if (file is File && file.path.contains('processed_image')) {
+        await file.delete();
+      }
     }
   }
 
