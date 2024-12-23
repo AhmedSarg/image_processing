@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_processing/logic/cubit/base_states.dart';
 import 'package:image_processing/logic/extensions/extensions.dart';
+import 'package:image_processing/ui/resources/app_routes.dart';
 import 'package:image_processing/ui/resources/app_size.dart';
 
 import '../../resources/app_widgets_extensions.dart';
 import '../viewmodel/home_viewmodel.dart';
-import 'widgets/process_options_dialog.dart';
 
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
@@ -28,30 +28,19 @@ class HomeView extends StatelessWidget {
             ),
             body: SizedBox(
               width: double.infinity,
-              child: SingleChildScrollView(
-                padding: const AppPadding.all(AppSize.l),
-                child: Wrap(
-                  runSpacing: AppSize.l,
-                  spacing: AppSize.l,
-                  runAlignment: WrapAlignment.center,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    ImageContainer(
-                      image: viewModel.initialImage,
-                      validator: (_) {
-                        if (viewModel.initialImage == null) {
-                          return 'load an image to start';
-                        }
-                        return null;
-                      },
-                      placeholder: 'load an image to start',
-                    ),
-                    ImageContainer(
-                      image: viewModel.processedImage,
-                      placeholder: 'process an image to start',
-                    ),
-                    const SizedBox(height: AppSize.l),
-                  ],
+              child: Center(
+                child: Padding(
+                  padding: const AppPadding.bottom(AppSize.l),
+                  child: ImageContainer(
+                    image: viewModel.initialImage,
+                    validator: (_) {
+                      if (viewModel.initialImage == null) {
+                        return 'load an image to start';
+                      }
+                      return null;
+                    },
+                    placeholder: 'load an image to start',
+                  ),
                 ),
               ),
             ),
@@ -84,15 +73,17 @@ class HomeView extends StatelessWidget {
                         child: AppElevatedButton.simple(
                           onPressed: () {
                             if (_formKey.currentState!.validate()) {
-                              showDialog(
-                                context: context,
-                                builder: (context) => ProcessOptionsDialog(
-                                  onMethodPressed: (method) async {
-                                    Navigator.pop(context);
-                                    await viewModel.processImage(method);
-                                  },
-                                ),
-                              );
+                              // showDialog(
+                              //   context: context,
+                              //   builder: (context) => ProcessOptionsDialog(
+                              //     onMethodPressed: (method) async {
+                              //       Navigator.pop(context);
+                              //       await viewModel.processImage(method);
+                              //     },
+                              //   ),
+                              // );
+                              Navigator.pushNamed(
+                                  context, Routes.processingRoute);
                             }
                           },
                           padding: const AppPadding.vertical(AppSize.s),

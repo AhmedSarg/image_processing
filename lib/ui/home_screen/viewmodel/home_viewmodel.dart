@@ -22,17 +22,10 @@ class HomeViewModel extends BaseCubit {
     emit(ContentState());
   }
 
-  processImage(ImageProcessingMethod method) async {
-    await _imageProcessor.processImage(method);
-    emit(ContentState());
-  }
-
   clear() {
     _imageProcessor.clear();
     emit(ContentState());
   }
 
   File? get initialImage => _imageProcessor.initialImage;
-
-  File? get processedImage => _imageProcessor.processedImage;
 }

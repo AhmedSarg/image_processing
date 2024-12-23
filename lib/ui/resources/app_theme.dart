@@ -30,6 +30,7 @@ class ThemeManager {
           ),
         ),
       );
+
   static ThemeData get darkTheme => ThemeData(
         colorScheme: const DarkColors(),
         appBarTheme: const AppBarTheme(

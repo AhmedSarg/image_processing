@@ -27,7 +27,9 @@ class ProcessOptionsDialog extends StatelessWidget {
                       onMethodPressed(method);
                     },
                     text:
-                        '${method.name.characters.first.toUpperCase()}${method.name.substring(1)}',
+                        '${method.name.characters.first.toUpperCase()}${method.name.substring(1)}'
+                            .replaceAllMapped(
+                                RegExp(r'(?<=[a-z])(?=[A-Z])'), (match) => ' '),
                   ),
                 ),
               )

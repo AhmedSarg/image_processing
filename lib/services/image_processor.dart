@@ -1,9 +1,22 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:image/image.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'complex_number.dart';
+
 enum ImageProcessingMethod {
+  rgb2Gray,
+  rgb2Binary,
+  gray2Binary,
+  brightness,
+  negative,
+  contrast,
+  histogram,
+  gammaCorrection,
+  histogramEqualization,
+  convolution,
   blurringMean,
   blurringWeight,
   edgeDetectionPoint,
@@ -16,12 +29,22 @@ enum ImageProcessingMethod {
   sharpeningHorizontal,
   sharpeningDiagonalLeft,
   sharpeningDiagonalRight,
+  fourierTransform,
+  fourierTransformInverse,
+  frequencyDomainFilterIdealLowPass,
+  frequencyDomainFilterGaussianLowPass,
+  frequencyDomainFilterButterworthLowPass,
+  frequencyDomainFilterIdealHighPass,
+  frequencyDomainFilterGaussianHighPass,
+  frequencyDomainFilterButterworthHighPass,
 }
 
 class ImageProcessor {
   static Image? _initialImage, _processedImage;
   static File? _initialImageFile, _processedImageFile;
-  static int threshold = 32;
+  static const int threshold = 128;
+
+  // static final Map<ImageProcessingMethod, File> _processedImages = {};
 
   loadImage(String imagePath) async {
     _initialImage = await decodeImageFile(imagePath);
@@ -35,13 +58,14 @@ class ImageProcessor {
   }
 
   processImage(ImageProcessingMethod method) async {
-    final Directory dir = await getTemporaryDirectory();
     _handleImageProcessingMethod(method);
     if (_processedImage != null) {
       clearProcessedImages();
+      final Directory dir = await getTemporaryDirectory();
       _processedImageFile = await File(
               '${dir.path}processed_image_${DateTime.now().millisecondsSinceEpoch}.jpg')
           .writeAsBytes(encodePng(_processedImage!));
+      return _processedImageFile;
     }
   }
 
@@ -74,6 +98,41 @@ class ImageProcessor {
 
   _handleImageProcessingMethod(ImageProcessingMethod method) {
     switch (method) {
+      case ImageProcessingMethod.rgb2Gray:
+        _processedImage = _rgbToGray();
+        break;
+      case ImageProcessingMethod.rgb2Binary:
+        _processedImage = _rgbToBinary(threshold);
+        break;
+      case ImageProcessingMethod.gray2Binary:
+        _processedImage = _grayToBinary(threshold);
+        break;
+      case ImageProcessingMethod.brightness:
+        _processedImage = _brightness(64);
+        break;
+      case ImageProcessingMethod.negative:
+        _processedImage = _negative();
+        break;
+      case ImageProcessingMethod.contrast:
+        _processedImage = _contrast(1.5);
+        break;
+      case ImageProcessingMethod.histogram:
+        _processedImage = _histogram();
+        break;
+      case ImageProcessingMethod.gammaCorrection:
+        _processedImage = _gammaCorrection(0.5);
+        break;
+      case ImageProcessingMethod.histogramEqualization:
+        _processedImage = _histogramEqualization();
+        break;
+      case ImageProcessingMethod.convolution:
+        List<List<int>> sobelKernel = [
+          [-1, 0, 1],
+          [-2, 0, 2],
+          [-1, 0, 1]
+        ];
+        _processedImage = _convolution(sobelKernel);
+        break;
       case ImageProcessingMethod.blurringMean:
         _processedImage = _blurringMean();
         break;
@@ -110,7 +169,389 @@ class ImageProcessor {
       case ImageProcessingMethod.sharpeningDiagonalRight:
         _processedImage = _sharpeningDiagonalRight(threshold);
         break;
+      case ImageProcessingMethod.fourierTransform:
+        _processedImage = _fourierTransform();
+        break;
+      case ImageProcessingMethod.fourierTransformInverse:
+        _processedImage = _fourierTransformInverse();
+        break;
+      case ImageProcessingMethod.frequencyDomainFilterIdealLowPass:
+      // TODO: Handle this case.
+      case ImageProcessingMethod.frequencyDomainFilterGaussianLowPass:
+      // TODO: Handle this case.
+      case ImageProcessingMethod.frequencyDomainFilterButterworthLowPass:
+      // TODO: Handle this case.
+      case ImageProcessingMethod.frequencyDomainFilterIdealHighPass:
+      // TODO: Handle this case.
+      case ImageProcessingMethod.frequencyDomainFilterGaussianHighPass:
+      // TODO: Handle this case.
+      case ImageProcessingMethod.frequencyDomainFilterButterworthHighPass:
+      // TODO: Handle this case.
     }
+  }
+
+  _rgbToGray() {
+    Image grayImage = Image(
+      width: _initialImage!.width,
+      height: _initialImage!.height,
+    );
+
+    for (int y = 0; y < _initialImage!.height; y++) {
+      for (int x = 0; x < _initialImage!.width; x++) {
+        Pixel pixel = _initialImage!.getPixel(x, y);
+
+        int r = pixel.r.toInt();
+        int g = pixel.g.toInt();
+        int b = pixel.b.toInt();
+
+        int grayValue = (0.299 * r + 0.587 * g + 0.114 * b).toInt();
+        ColorRgb8 grayPixel = ColorRgb8(grayValue, grayValue, grayValue);
+
+        grayImage.setPixel(x, y, grayPixel);
+      }
+    }
+
+    return grayImage;
+  }
+
+  _rgbToBinary(int threshold) {
+    Image binaryImage = Image(
+      width: _initialImage!.width,
+      height: _initialImage!.height,
+    );
+
+    for (int y = 0; y < _initialImage!.height; y++) {
+      for (int x = 0; x < _initialImage!.width; x++) {
+        Pixel pixel = _initialImage!.getPixel(x, y);
+
+        int grayValue =
+            (0.299 * pixel.r + 0.587 * pixel.g + 0.114 * pixel.b).toInt();
+        int binaryValue = grayValue > threshold ? 255 : 0;
+        ColorRgb8 binaryPixel = ColorRgb8(
+          binaryValue,
+          binaryValue,
+          binaryValue,
+        );
+
+        binaryImage.setPixel(x, y, binaryPixel);
+      }
+    }
+    return binaryImage;
+  }
+
+  _grayToBinary(int threshold) {
+    // Create a new binary image
+    Image binaryImage = Image(
+      width: _initialImage!.width,
+      height: _initialImage!.height,
+    );
+
+    for (int y = 0; y < _initialImage!.height; y++) {
+      for (int x = 0; x < _initialImage!.width; x++) {
+        // Get the current grayscale pixel
+        Pixel pixel = _initialImage!.getPixel(x, y);
+
+        // Use the red channel (since it's grayscale, r = g = b)
+        int grayValue = pixel.r.toInt();
+
+        // Determine if the pixel is black or white based on the threshold
+        int binaryValue = grayValue > threshold ? 255 : 0;
+
+        // Create a binary pixel (black or white)
+        ColorRgb8 binaryPixel =
+            ColorRgb8(binaryValue, binaryValue, binaryValue);
+
+        // Set the binary pixel in the new image
+        binaryImage.setPixel(x, y, binaryPixel);
+      }
+    }
+
+    return binaryImage;
+  }
+
+  _brightness(int adjustment) {
+    // Create a new image for brightness adjustment
+    Image brightnessAdjusted = Image(
+      width: _initialImage!.width,
+      height: _initialImage!.height,
+    );
+
+    for (int y = 0; y < _initialImage!.height; y++) {
+      for (int x = 0; x < _initialImage!.width; x++) {
+        // Get the current pixel
+        Pixel pixel = _initialImage!.getPixel(x, y);
+
+        // Adjust brightness for each channel and clamp values between 0 and 255
+        int newRed = (pixel.r + adjustment).clamp(0, 255).toInt();
+        int newGreen = (pixel.g + adjustment).clamp(0, 255).toInt();
+        int newBlue = (pixel.b + adjustment).clamp(0, 255).toInt();
+
+        // Create a new pixel with adjusted brightness
+        ColorRgb8 newPixel = ColorRgb8(newRed, newGreen, newBlue);
+
+        // Set the adjusted pixel in the new image
+        brightnessAdjusted.setPixel(x, y, newPixel);
+      }
+    }
+
+    return brightnessAdjusted;
+  }
+
+  _negative() {
+    // Create a new image for the negative
+    Image negativeImage = Image(
+      width: _initialImage!.width,
+      height: _initialImage!.height,
+    );
+
+    for (int y = 0; y < _initialImage!.height; y++) {
+      for (int x = 0; x < _initialImage!.width; x++) {
+        // Get the current pixel
+        Pixel pixel = _initialImage!.getPixel(x, y);
+
+        // Invert each color channel to get the negative
+        int newRed = (255 - pixel.r).clamp(0, 255).toInt();
+        int newGreen = (255 - pixel.g).clamp(0, 255).toInt();
+        int newBlue = (255 - pixel.b).clamp(0, 255).toInt();
+
+        // Create a new pixel with the inverted colors
+        ColorRgb8 newPixel = ColorRgb8(newRed, newGreen, newBlue);
+
+        // Set the negative pixel in the new image
+        negativeImage.setPixel(x, y, newPixel);
+      }
+    }
+
+    return negativeImage;
+  }
+
+  _contrast(double factor) {
+    // Create a new image for contrast adjustment
+    Image contrastAdjusted = Image(
+      width: _initialImage!.width,
+      height: _initialImage!.height,
+    );
+
+    for (int y = 0; y < _initialImage!.height; y++) {
+      for (int x = 0; x < _initialImage!.width; x++) {
+        // Get the current pixel
+        Pixel pixel = _initialImage!.getPixel(x, y);
+
+        // Adjust contrast for each channel
+        int newRed = ((factor * (pixel.r - 128)) + 128).clamp(0, 255).toInt();
+        int newGreen = ((factor * (pixel.g - 128)) + 128).clamp(0, 255).toInt();
+        int newBlue = ((factor * (pixel.b - 128)) + 128).clamp(0, 255).toInt();
+
+        // Create a new pixel with adjusted contrast
+        ColorRgb8 newPixel = ColorRgb8(newRed, newGreen, newBlue);
+
+        // Set the adjusted pixel in the new image
+        contrastAdjusted.setPixel(x, y, newPixel);
+      }
+    }
+
+    return contrastAdjusted;
+  }
+
+  _histogram() {
+    // Initialize arrays for R, G, and B histograms
+    List<int> redHistogram = List.filled(256, 0);
+    List<int> greenHistogram = List.filled(256, 0);
+    List<int> blueHistogram = List.filled(256, 0);
+
+    // Calculate the histograms
+    for (int y = 0; y < _initialImage!.height; y++) {
+      for (int x = 0; x < _initialImage!.width; x++) {
+        // Get the current pixel
+        Pixel pixel = _initialImage!.getPixel(x, y);
+
+        // Increment the counts for each channel
+        redHistogram[pixel.r.toInt()]++;
+        greenHistogram[pixel.g.toInt()]++;
+        blueHistogram[pixel.b.toInt()]++;
+      }
+    }
+
+    Map<String, List<int>> histogram = {
+      'red': redHistogram,
+      'green': greenHistogram,
+      'blue': blueHistogram,
+    };
+
+    // Create a blank image for the histogram visualization
+    int histogramWidth = 256; // Fixed width for intensity values
+    int histogramHeight = _initialImage!.height; // Can be adjusted
+    Image histogramImage = Image(
+      width: histogramWidth,
+      height: histogramHeight,
+    );
+
+    // Get the maximum value for normalization
+    int maxValue =
+        histogram.values.expand((list) => list).reduce((a, b) => a > b ? a : b);
+
+    // Draw histograms for each channel
+    for (int intensity = 0; intensity < 256; intensity++) {
+      // Scale bar heights for each channel
+      int redHeight =
+          ((histogram['red']![intensity] / maxValue) * histogramHeight).toInt();
+      int greenHeight =
+          ((histogram['green']![intensity] / maxValue) * histogramHeight)
+              .toInt();
+      int blueHeight =
+          ((histogram['blue']![intensity] / maxValue) * histogramHeight)
+              .toInt();
+
+      // Draw red bar
+      for (int y = 0; y < redHeight; y++) {
+        histogramImage.setPixel(intensity, histogramHeight - y - 1,
+            ColorRgb8(255, 0, 0)); // Red bars
+      }
+
+      // Draw green bar
+      for (int y = 0; y < greenHeight; y++) {
+        histogramImage.setPixel(intensity, histogramHeight - y - 1,
+            ColorRgb8(0, 255, 0)); // Green bars
+      }
+
+      // Draw blue bar
+      for (int y = 0; y < blueHeight; y++) {
+        histogramImage.setPixel(intensity, histogramHeight - y - 1,
+            ColorRgb8(0, 0, 255)); // Blue bars
+      }
+    }
+
+    return histogramImage;
+  }
+
+  _gammaCorrection(double gamma) {
+    int width = _initialImage!.width;
+    int height = _initialImage!.height;
+
+    // Create a new image to store the processed result
+    Image newImage = Image(width: width, height: height);
+
+    // Precompute the gamma correction lookup table for performance
+    List<int> gammaLookupTable = List.generate(256, (i) {
+      return (255 * pow(i / 255, 1 / gamma)).clamp(0, 255).toInt();
+    });
+
+    // Loop over the pixels and apply gamma correction
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        Pixel pixel = _initialImage!.getPixel(x, y);
+
+        int correctedR = gammaLookupTable[pixel.r.toInt()];
+        int correctedG = gammaLookupTable[pixel.g.toInt()];
+        int correctedB = gammaLookupTable[pixel.b.toInt()];
+
+        newImage.setPixel(x, y, ColorRgb8(correctedR, correctedG, correctedB));
+      }
+    }
+
+    return newImage;
+  }
+
+  _histogramEqualization() {
+    int width = _initialImage!.width;
+    int height = _initialImage!.height;
+
+    // Create a new image to store the processed result
+    Image newImage = Image(width: width, height: height);
+
+    // Step 1: Compute the histogram of the grayscale intensities
+    List<int> histogram = List.filled(256, 0);
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        Pixel pixel = _initialImage!.getPixel(x, y);
+        int gray = ((pixel.r.toInt() + pixel.g.toInt() + pixel.b.toInt()) ~/ 3);
+        histogram[gray]++;
+      }
+    }
+
+    // Step 2: Compute the cumulative distribution function (CDF)
+    List<int> cdf = List.filled(256, 0);
+    cdf[0] = histogram[0];
+    for (int i = 1; i < 256; i++) {
+      cdf[i] = cdf[i - 1] + histogram[i];
+    }
+
+    // Step 3: Normalize the CDF to map the values to the range [0, 255]
+    int cdfMin =
+        cdf.firstWhere((value) => value > 0); // Find the first non-zero value
+    int totalPixels = width * height;
+    List<int> equalizationMap = List.generate(256, (i) {
+      return (((cdf[i] - cdfMin) / (totalPixels - cdfMin)) * 255).round();
+    });
+
+    // Step 4: Apply the equalization map to each pixel
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        Pixel pixel = _initialImage!.getPixel(x, y);
+
+        // Convert to grayscale intensity
+        int gray = ((pixel.r.toInt() + pixel.g.toInt() + pixel.b.toInt()) ~/ 3);
+
+        // Apply the equalization map
+        int newGray = equalizationMap[gray];
+
+        // Set the new pixel as grayscale (same value for R, G, and B)
+        newImage.setPixel(x, y, ColorRgb8(newGray, newGray, newGray));
+      }
+    }
+
+    return newImage;
+  }
+
+  _convolution(List<List<int>> kernel, {int divisor = 1, int offset = 0}) {
+    int width = _initialImage!.width;
+    int height = _initialImage!.height;
+
+    // Create a new image to store the processed result
+    Image newImage = Image(width: width, height: height);
+
+    // Compute the kernel dimensions
+    int kernelWidth = kernel[0].length;
+    int kernelHeight = kernel.length;
+
+    // Assume kernel dimensions are odd (e.g., 3x3, 5x5)
+    int kCenterX = kernelWidth ~/ 2;
+    int kCenterY = kernelHeight ~/ 2;
+
+    // Loop over each pixel in the image
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        int r = 0, g = 0, b = 0;
+
+        // Apply the kernel
+        for (int ky = 0; ky < kernelHeight; ky++) {
+          for (int kx = 0; kx < kernelWidth; kx++) {
+            int px = x + kx - kCenterX;
+            int py = y + ky - kCenterY;
+
+            // Ensure the coordinates are within bounds
+            if (px >= 0 && px < width && py >= 0 && py < height) {
+              Pixel pixel = _initialImage!.getPixel(px, py);
+              int weight = kernel[ky][kx];
+
+              r += pixel.r.toInt() * weight;
+              g += pixel.g.toInt() * weight;
+              b += pixel.b.toInt() * weight;
+            }
+          }
+        }
+
+        // Normalize by divisor and add offset, then clamp values
+        int newR = ((r ~/ divisor) + offset).clamp(0, 255);
+        int newG = ((g ~/ divisor) + offset).clamp(0, 255);
+        int newB = ((b ~/ divisor) + offset).clamp(0, 255);
+
+        // Set the new pixel value
+        newImage.setPixel(x, y, ColorRgb8(newR, newG, newB));
+      }
+    }
+
+    return newImage;
   }
 
   _blurringMean() {
@@ -633,6 +1074,609 @@ class ImageProcessor {
     }
 
     return newImage;
+  }
+
+  // List<ComplexNumber> _fft(List<ComplexNumber> input) {
+  //   int n = input.length;
+  //
+  //   // Base case: single element
+  //   if (n == 1) return [input[0]];
+  //
+  //   // Split input into even and odd indices
+  //   List<ComplexNumber> even = [for (int i = 0; i < n; i += 2) input[i]];
+  //   List<ComplexNumber> odd = [for (int i = 1; i < n; i += 2) input[i]];
+  //
+  //   // Recursively compute FFT for both halves
+  //   List<ComplexNumber> fftEven = _fft(even);
+  //   List<ComplexNumber> fftOdd = _fft(odd);
+  //
+  //   // Combine the results
+  //   List<ComplexNumber> output = List.filled(n, ComplexNumber(0, 0));
+  //   for (int k = 0; k < n ~/ 2; k++) {
+  //     double angle = -2 * pi * k / n;
+  //     ComplexNumber twiddle = ComplexNumber(cos(angle), sin(angle)) * fftOdd[k];
+  //
+  //     output[k] = fftEven[k] + twiddle;
+  //     output[k + n ~/ 2] = fftEven[k] - twiddle;
+  //   }
+  //
+  //   return output;
+  // }
+  //
+  // List<List<ComplexNumber>> _fft2D(List<List<int>> image) {
+  //   int width = image[0].length;
+  //   int height = image.length;
+  //
+  //   // Apply FFT row-wise
+  //   List<List<ComplexNumber>> rowTransformed = List.generate(
+  //     height,
+  //     (y) => _fft(
+  //         image[y].map((value) => ComplexNumber(value.toDouble(), 0)).toList()),
+  //   );
+  //
+  //   // Transpose the result to apply FFT column-wise
+  //   List<List<ComplexNumber>> transposed = List.generate(
+  //     width,
+  //     (x) => [for (int y = 0; y < height; y++) rowTransformed[y][x]],
+  //   );
+  //
+  //   // Apply FFT column-wise
+  //   List<List<ComplexNumber>> columnTransformed = List.generate(
+  //     width,
+  //     (x) => _fft(transposed[x]),
+  //   );
+  //
+  //   // Transpose back to original orientation
+  //   return List.generate(
+  //     height,
+  //     (y) => [for (int x = 0; x < width; x++) columnTransformed[x][y]],
+  //   );
+  // }
+  //
+  // _fftImage() {
+  //   int width = _initialImage!.width;
+  //   int height = _initialImage!.height;
+  //
+  //   // Convert the image to a grayscale intensity matrix
+  //   List<List<int>> intensityMatrix = List.generate(
+  //     height,
+  //     (y) => List.generate(
+  //       width,
+  //       (x) {
+  //         Pixel pixel = _initialImage!.getPixel(x, y);
+  //         return ((pixel.r.toInt() + pixel.g.toInt() + pixel.b.toInt()) ~/ 3);
+  //       },
+  //     ),
+  //   );
+  //
+  //   // Apply 2D FFT
+  //   List<List<ComplexNumber>> frequencyDomain = _fft2D(intensityMatrix);
+  //
+  //   return frequencyDomain;
+  // }
+  //
+  // _centerFrequencyDomain(List<List<ComplexNumber>> frequencyDomain) {
+  //   int height = frequencyDomain.length;
+  //   int width = frequencyDomain[0].length;
+  //
+  //   List<List<ComplexNumber>> centered = List.generate(
+  //     height,
+  //     (_) => List.generate(width, (_) => ComplexNumber(0, 0)),
+  //   );
+  //
+  //   for (int y = 0; y < height; y++) {
+  //     for (int x = 0; x < width; x++) {
+  //       int newX = (x + width ~/ 2) % width;
+  //       int newY = (y + height ~/ 2) % height;
+  //
+  //       centered[newY][newX] = frequencyDomain[y][x];
+  //     }
+  //   }
+  //
+  //   return centered;
+  // }
+  //
+  // _fourierTransform() {
+  //   List<List<ComplexNumber>> frequencyDomain = _fftImage();
+  //   frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+  //   int height = frequencyDomain.length;
+  //   int width = frequencyDomain[0].length;
+  //
+  //   Image newImage = Image(width: width, height: height);
+  //
+  //   // Find the maximum magnitude for scaling
+  //   double maxMagnitude = 0;
+  //   for (int y = 0; y < height; y++) {
+  //     for (int x = 0; x < width; x++) {
+  //       double magnitude = frequencyDomain[y][x].magnitude;
+  //       maxMagnitude = max(maxMagnitude, magnitude);
+  //     }
+  //   }
+  //
+  //   // Visualize the magnitudes
+  //   for (int y = 0; y < height; y++) {
+  //     for (int x = 0; x < width; x++) {
+  //       double magnitude = frequencyDomain[y][x].magnitude;
+  //
+  //       // Apply log scaling for better visualization
+  //       double scaledMagnitude = log(1 + magnitude) / log(1 + maxMagnitude);
+  //       int intensity = (scaledMagnitude * 255).clamp(0, 255).toInt();
+  //
+  //       // Set the pixel value
+  //       newImage.setPixel(x, y, ColorRgb8(intensity, intensity, intensity));
+  //     }
+  //   }
+  //
+  //   return newImage;
+  // }
+  //
+  // List<ComplexNumber> _ifft(List<ComplexNumber> input) {
+  //   int n = input.length;
+  //
+  //   // Base case: single element
+  //   if (n == 1) return [input[0]];
+  //
+  //   // Split input into even and odd indices
+  //   List<ComplexNumber> even = [for (int i = 0; i < n; i += 2) input[i]];
+  //   List<ComplexNumber> odd = [for (int i = 1; i < n; i += 2) input[i]];
+  //
+  //   // Recursively compute IFFT for both halves
+  //   List<ComplexNumber> ifftEven = _ifft(even);
+  //   List<ComplexNumber> ifftOdd = _ifft(odd);
+  //
+  //   // Combine the results
+  //   List<ComplexNumber> output = List.filled(n, ComplexNumber(0, 0));
+  //   for (int k = 0; k < n ~/ 2; k++) {
+  //     double angle = 2 * pi * k / n; // Positive sign for IFFT
+  //     ComplexNumber twiddle =
+  //         ComplexNumber(cos(angle), sin(angle)) * ifftOdd[k];
+  //
+  //     output[k] = ifftEven[k] + twiddle;
+  //     output[k + n ~/ 2] = ifftEven[k] - twiddle;
+  //   }
+  //
+  //   // Normalize by the number of points
+  //   for (int i = 0; i < n; i++) {
+  //     output[i] = output[i] / n;
+  //   }
+  //
+  //   return output;
+  // }
+  //
+  // List<List<ComplexNumber>> _ifft2D(List<List<ComplexNumber>> frequencyDomain) {
+  //   int width = frequencyDomain[0].length;
+  //   int height = frequencyDomain.length;
+  //
+  //   // Apply IFFT row-wise
+  //   List<List<ComplexNumber>> rowTransformed = List.generate(
+  //     height,
+  //     (y) => _ifft(frequencyDomain[y]),
+  //   );
+  //
+  //   // Transpose the result to apply IFFT column-wise
+  //   List<List<ComplexNumber>> transposed = List.generate(
+  //     width,
+  //     (x) => [for (int y = 0; y < height; y++) rowTransformed[y][x]],
+  //   );
+  //
+  //   // Apply IFFT column-wise
+  //   List<List<ComplexNumber>> columnTransformed = List.generate(
+  //     width,
+  //     (x) => _ifft(transposed[x]),
+  //   );
+  //
+  //   // Transpose back to original orientation
+  //   return List.generate(
+  //     height,
+  //     (y) => [for (int x = 0; x < width; x++) columnTransformed[x][y]],
+  //   );
+  // }
+  //
+  // _fourierTransformInverse() {
+  //   // Step 1: Get the frequency domain
+  //   List<List<ComplexNumber>> frequencyDomain = _fftImage();
+  //
+  //   // Step 2: Center the frequency domain for filtering
+  //   frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+  //
+  //   // Step 3: Apply a low-pass filter
+  //   int height = frequencyDomain.length;
+  //   int width = frequencyDomain[0].length;
+  //   int centerX = width ~/ 2;
+  //   int centerY = height ~/ 2;
+  //   int radius = min(width, height) ~/ 4; // Define a cutoff radius
+  //
+  //   for (int y = 0; y < height; y++) {
+  //     for (int x = 0; x < width; x++) {
+  //       // Compute distance from center
+  //       double distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
+  //       if (distance > radius) {
+  //         frequencyDomain[y][x] =
+  //             ComplexNumber(0, 0); // Zero out high frequencies
+  //       }
+  //     }
+  //   }
+  //
+  //   // Step 4: De-center the frequency domain after filtering
+  //   frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+  //
+  //   // Step 5: Perform IFFT to return to the spatial domain
+  //   List<List<ComplexNumber>> spatialDomain = _ifft2D(frequencyDomain);
+  //
+  //   // Step 6: Convert spatial domain to an image
+  //   Image newImage = Image(width: width, height: height);
+  //
+  //   // Normalize pixel intensities
+  //   double minIntensity = double.infinity;
+  //   double maxIntensity = double.negativeInfinity;
+  //
+  //   for (int y = 0; y < height; y++) {
+  //     for (int x = 0; x < width; x++) {
+  //       double value = spatialDomain[y][x].real;
+  //       if (value < minIntensity) minIntensity = value;
+  //       if (value > maxIntensity) maxIntensity = value;
+  //     }
+  //   }
+  //
+  //   for (int y = 0; y < height; y++) {
+  //     for (int x = 0; x < width; x++) {
+  //       double value = spatialDomain[y][x].real;
+  //
+  //       // Normalize to [0, 1]
+  //       double normalized =
+  //           (value - minIntensity) / (maxIntensity - minIntensity);
+  //
+  //       // Scale to [0, 255]
+  //       int intensity = (normalized * 255).clamp(0, 255).toInt();
+  //
+  //       newImage.setPixel(x, y, ColorRgb8(intensity, intensity, intensity));
+  //     }
+  //   }
+  //
+  //   return newImage;
+  // }
+
+  List<ComplexNumber> _fft(List<ComplexNumber> input) {
+    int n = input.length;
+
+    if (n == 1) return [input[0]];
+
+    List<ComplexNumber> even = [for (int i = 0; i < n; i += 2) input[i]];
+    List<ComplexNumber> odd = [for (int i = 1; i < n; i += 2) input[i]];
+
+    List<ComplexNumber> fftEven = _fft(even);
+    List<ComplexNumber> fftOdd = _fft(odd);
+
+    List<ComplexNumber> output = List.filled(n, ComplexNumber(0, 0));
+    for (int k = 0; k < n ~/ 2; k++) {
+      double angle = -2 * pi * k / n;
+      ComplexNumber twiddle = ComplexNumber(cos(angle), sin(angle)) * fftOdd[k];
+
+      output[k] = fftEven[k] + twiddle;
+      output[k + n ~/ 2] = fftEven[k] - twiddle;
+    }
+
+    return output;
+  }
+
+  List<ComplexNumber> _ifft(List<ComplexNumber> input) {
+    int n = input.length;
+
+    if (n == 1) return [input[0]];
+
+    List<ComplexNumber> even = [for (int i = 0; i < n; i += 2) input[i]];
+    List<ComplexNumber> odd = [for (int i = 1; i < n; i += 2) input[i]];
+
+    List<ComplexNumber> ifftEven = _ifft(even);
+    List<ComplexNumber> ifftOdd = _ifft(odd);
+
+    List<ComplexNumber> output = List.filled(n, ComplexNumber(0, 0));
+    for (int k = 0; k < n ~/ 2; k++) {
+      double angle = 2 * pi * k / n;
+      ComplexNumber twiddle =
+          ComplexNumber(cos(angle), sin(angle)) * ifftOdd[k];
+
+      output[k] = ifftEven[k] + twiddle;
+      output[k + n ~/ 2] = ifftEven[k] - twiddle;
+    }
+
+    for (int i = 0; i < n; i++) {
+      output[i] = output[i] / n;
+    }
+
+    return output;
+  }
+
+  List<List<ComplexNumber>> _fft2D(List<List<int>> image) {
+    int width = image[0].length;
+    int height = image.length;
+
+    List<List<ComplexNumber>> rowTransformed = List.generate(
+      height,
+      (y) => _fft(
+          image[y].map((value) => ComplexNumber(value.toDouble(), 0)).toList()),
+    );
+
+    List<List<ComplexNumber>> transposed = List.generate(
+      width,
+      (x) => [for (int y = 0; y < height; y++) rowTransformed[y][x]],
+    );
+
+    List<List<ComplexNumber>> columnTransformed = List.generate(
+      width,
+      (x) => _fft(transposed[x]),
+    );
+
+    return List.generate(
+      height,
+      (y) => [for (int x = 0; x < width; x++) columnTransformed[x][y]],
+    );
+  }
+
+  List<List<ComplexNumber>> _ifft2D(List<List<ComplexNumber>> frequencyDomain) {
+    int width = frequencyDomain[0].length;
+    int height = frequencyDomain.length;
+
+    List<List<ComplexNumber>> rowTransformed = List.generate(
+      height,
+      (y) => _ifft(frequencyDomain[y]),
+    );
+
+    List<List<ComplexNumber>> transposed = List.generate(
+      width,
+      (x) => [for (int y = 0; y < height; y++) rowTransformed[y][x]],
+    );
+
+    List<List<ComplexNumber>> columnTransformed = List.generate(
+      width,
+      (x) => _ifft(transposed[x]),
+    );
+
+    return List.generate(
+      height,
+      (y) => [for (int x = 0; x < width; x++) columnTransformed[x][y]],
+    );
+  }
+
+  List<List<ComplexNumber>> _centerFrequencyDomain(
+      List<List<ComplexNumber>> frequencyDomain) {
+    int height = frequencyDomain.length;
+    int width = frequencyDomain[0].length;
+
+    List<List<ComplexNumber>> centered = List.generate(
+      height,
+      (_) => List.generate(width, (_) => ComplexNumber(0, 0)),
+    );
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        int newX = (x + width ~/ 2) % width;
+        int newY = (y + height ~/ 2) % height;
+
+        centered[newY][newX] = frequencyDomain[y][x];
+      }
+    }
+
+    return centered;
+  }
+
+  Image _fourierTransform() {
+    int width = _initialImage!.width;
+    int height = _initialImage!.height;
+
+    List<List<int>> intensityMatrix = List.generate(
+      height,
+      (y) => List.generate(
+        width,
+        (x) {
+          Pixel pixel = _initialImage!.getPixel(x, y);
+          return ((pixel.r.toInt() + pixel.g.toInt() + pixel.b.toInt()) ~/ 3);
+        },
+      ),
+    );
+
+    List<List<ComplexNumber>> frequencyDomain = _fft2D(intensityMatrix);
+    frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+
+    Image newImage = Image(width: width, height: height);
+
+    double maxMagnitude = 0;
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        double magnitude = frequencyDomain[y][x].magnitude;
+        maxMagnitude = max(maxMagnitude, magnitude);
+      }
+    }
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        double magnitude = frequencyDomain[y][x].magnitude;
+        double scaledMagnitude = log(1 + magnitude) / log(1 + maxMagnitude);
+        int intensity = (scaledMagnitude * 255).clamp(0, 255).toInt();
+        newImage.setPixel(x, y, ColorRgb8(intensity, intensity, intensity));
+      }
+    }
+
+    return newImage;
+  }
+
+  Image _fourierTransformInverse() {
+    Image inputImage = _fourierTransform();
+    int width = inputImage.width;
+    int height = inputImage.height;
+
+    List<List<int>> intensityMatrix = List.generate(
+      height,
+      (y) => List.generate(
+        width,
+        (x) {
+          Pixel pixel = inputImage.getPixel(x, y);
+          return ((pixel.r.toInt() + pixel.g.toInt() + pixel.b.toInt()) ~/ 3);
+        },
+      ),
+    );
+
+    List<List<ComplexNumber>> frequencyDomain = _fft2D(intensityMatrix);
+    frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+
+    int centerX = width ~/ 2;
+    int centerY = height ~/ 2;
+    int radius = min(width, height) ~/ 4;
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        double distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
+        if (distance > radius) {
+          frequencyDomain[y][x] = ComplexNumber(0, 0);
+        }
+      }
+    }
+
+    frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+    List<List<ComplexNumber>> spatialDomain = _ifft2D(frequencyDomain);
+
+    Image newImage = Image(width: width, height: height);
+
+    double minIntensity = double.infinity;
+    double maxIntensity = double.negativeInfinity;
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        double value = spatialDomain[y][x].real;
+        if (value < minIntensity) minIntensity = value;
+        if (value > maxIntensity) maxIntensity = value;
+      }
+    }
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        double value = spatialDomain[y][x].real;
+        double normalized =
+            (value - minIntensity) / (maxIntensity - minIntensity);
+        int intensity = (normalized * 255).clamp(0, 255).toInt();
+        newImage.setPixel(x, y, ColorRgb8(intensity, intensity, intensity));
+      }
+    }
+
+    return newImage;
+  }
+
+  List<List<ComplexNumber>> idealLowPassFilter(
+    List<List<ComplexNumber>> frequencyDomain,
+    double radius,
+  ) {
+    int height = frequencyDomain.length;
+    int width = frequencyDomain[0].length;
+    int centerX = width ~/ 2;
+    int centerY = height ~/ 2;
+
+    return List.generate(height, (y) {
+      return List.generate(width, (x) {
+        double distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
+        return (distance <= radius)
+            ? frequencyDomain[y][x]
+            : ComplexNumber(0, 0);
+      });
+    });
+  }
+
+  List<List<ComplexNumber>> idealHighPassFilter(
+    List<List<ComplexNumber>> frequencyDomain,
+    double radius,
+  ) {
+    int height = frequencyDomain.length;
+    int width = frequencyDomain[0].length;
+    int centerX = width ~/ 2;
+    int centerY = height ~/ 2;
+
+    return List.generate(height, (y) {
+      return List.generate(width, (x) {
+        double distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
+        return (distance > radius)
+            ? frequencyDomain[y][x]
+            : ComplexNumber(0, 0);
+      });
+    });
+  }
+
+  List<List<ComplexNumber>> gaussianLowPassFilter(
+    List<List<ComplexNumber>> frequencyDomain,
+    double sigma,
+  ) {
+    int height = frequencyDomain.length;
+    int width = frequencyDomain[0].length;
+    int centerX = width ~/ 2;
+    int centerY = height ~/ 2;
+
+    return List.generate(height, (y) {
+      return List.generate(width, (x) {
+        double distanceSquared =
+            pow(x - centerX, 2) + pow(y - centerY, 2).toDouble();
+        double filterValue = exp(-distanceSquared / (2 * sigma * sigma));
+        return frequencyDomain[y][x] * ComplexNumber(filterValue, 0);
+      });
+    });
+  }
+
+  List<List<ComplexNumber>> gaussianHighPassFilter(
+    List<List<ComplexNumber>> frequencyDomain,
+    double sigma,
+  ) {
+    int height = frequencyDomain.length;
+    int width = frequencyDomain[0].length;
+    int centerX = width ~/ 2;
+    int centerY = height ~/ 2;
+
+    return List.generate(height, (y) {
+      return List.generate(width, (x) {
+        double distanceSquared =
+            pow(x - centerX, 2) + pow(y - centerY, 2).toDouble();
+        double filterValue = 1 - exp(-distanceSquared / (2 * sigma * sigma));
+        return frequencyDomain[y][x] * ComplexNumber(filterValue, 0);
+      });
+    });
+  }
+
+  List<List<ComplexNumber>> butterworthLowPassFilter(
+    List<List<ComplexNumber>> frequencyDomain,
+    double radius,
+    int n,
+  ) {
+    int height = frequencyDomain.length;
+    int width = frequencyDomain[0].length;
+    int centerX = width ~/ 2;
+    int centerY = height ~/ 2;
+
+    return List.generate(height, (y) {
+      return List.generate(width, (x) {
+        double distanceSquared =
+            pow(x - centerX, 2) + pow(y - centerY, 2).toDouble();
+        double filterValue =
+            1 / (1 + pow(sqrt(distanceSquared) / radius, 2 * n));
+        return frequencyDomain[y][x] * ComplexNumber(filterValue, 0);
+      });
+    });
+  }
+
+  List<List<ComplexNumber>> butterworthHighPassFilter(
+    List<List<ComplexNumber>> frequencyDomain,
+    double radius,
+    int n,
+  ) {
+    int height = frequencyDomain.length;
+    int width = frequencyDomain[0].length;
+    int centerX = width ~/ 2;
+    int centerY = height ~/ 2;
+
+    return List.generate(height, (y) {
+      return List.generate(width, (x) {
+        double distanceSquared =
+            pow(x - centerX, 2) + pow(y - centerY, 2).toDouble();
+        double filterValue =
+            1 / (1 + pow(radius / sqrt(distanceSquared), 2 * n));
+        return frequencyDomain[y][x] * ComplexNumber(filterValue, 0);
+      });
+    });
   }
 
   File? get initialImage => _initialImageFile;
