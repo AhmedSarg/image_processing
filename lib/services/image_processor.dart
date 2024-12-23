@@ -173,20 +173,26 @@ class ImageProcessor {
         _processedImage = _fourierTransform();
         break;
       case ImageProcessingMethod.fourierTransformInverse:
-        _processedImage = _fourierTransformInverse();
+        _processedImage = _inverseFFT(_computeFFT(_initialImage!));
         break;
       case ImageProcessingMethod.frequencyDomainFilterIdealLowPass:
-      // TODO: Handle this case.
+        _processedImage = _idealLowPassFilter(50);
+        break;
       case ImageProcessingMethod.frequencyDomainFilterGaussianLowPass:
-      // TODO: Handle this case.
+        _processedImage = _gaussianLowPassFilter(20);
+        break;
       case ImageProcessingMethod.frequencyDomainFilterButterworthLowPass:
-      // TODO: Handle this case.
+        _processedImage = _butterworthLowPassFilter(30, 4);
+        break;
       case ImageProcessingMethod.frequencyDomainFilterIdealHighPass:
-      // TODO: Handle this case.
+        _processedImage = _idealHighPassFilter(50);
+        break;
       case ImageProcessingMethod.frequencyDomainFilterGaussianHighPass:
-      // TODO: Handle this case.
+        _processedImage = _gaussianHighPassFilter(20);
+        break;
       case ImageProcessingMethod.frequencyDomainFilterButterworthHighPass:
-      // TODO: Handle this case.
+        _processedImage = _butterworthHighPassFilter(40, 5);
+        break;
     }
   }
 
@@ -1076,266 +1082,6 @@ class ImageProcessor {
     return newImage;
   }
 
-  // List<ComplexNumber> _fft(List<ComplexNumber> input) {
-  //   int n = input.length;
-  //
-  //   // Base case: single element
-  //   if (n == 1) return [input[0]];
-  //
-  //   // Split input into even and odd indices
-  //   List<ComplexNumber> even = [for (int i = 0; i < n; i += 2) input[i]];
-  //   List<ComplexNumber> odd = [for (int i = 1; i < n; i += 2) input[i]];
-  //
-  //   // Recursively compute FFT for both halves
-  //   List<ComplexNumber> fftEven = _fft(even);
-  //   List<ComplexNumber> fftOdd = _fft(odd);
-  //
-  //   // Combine the results
-  //   List<ComplexNumber> output = List.filled(n, ComplexNumber(0, 0));
-  //   for (int k = 0; k < n ~/ 2; k++) {
-  //     double angle = -2 * pi * k / n;
-  //     ComplexNumber twiddle = ComplexNumber(cos(angle), sin(angle)) * fftOdd[k];
-  //
-  //     output[k] = fftEven[k] + twiddle;
-  //     output[k + n ~/ 2] = fftEven[k] - twiddle;
-  //   }
-  //
-  //   return output;
-  // }
-  //
-  // List<List<ComplexNumber>> _fft2D(List<List<int>> image) {
-  //   int width = image[0].length;
-  //   int height = image.length;
-  //
-  //   // Apply FFT row-wise
-  //   List<List<ComplexNumber>> rowTransformed = List.generate(
-  //     height,
-  //     (y) => _fft(
-  //         image[y].map((value) => ComplexNumber(value.toDouble(), 0)).toList()),
-  //   );
-  //
-  //   // Transpose the result to apply FFT column-wise
-  //   List<List<ComplexNumber>> transposed = List.generate(
-  //     width,
-  //     (x) => [for (int y = 0; y < height; y++) rowTransformed[y][x]],
-  //   );
-  //
-  //   // Apply FFT column-wise
-  //   List<List<ComplexNumber>> columnTransformed = List.generate(
-  //     width,
-  //     (x) => _fft(transposed[x]),
-  //   );
-  //
-  //   // Transpose back to original orientation
-  //   return List.generate(
-  //     height,
-  //     (y) => [for (int x = 0; x < width; x++) columnTransformed[x][y]],
-  //   );
-  // }
-  //
-  // _fftImage() {
-  //   int width = _initialImage!.width;
-  //   int height = _initialImage!.height;
-  //
-  //   // Convert the image to a grayscale intensity matrix
-  //   List<List<int>> intensityMatrix = List.generate(
-  //     height,
-  //     (y) => List.generate(
-  //       width,
-  //       (x) {
-  //         Pixel pixel = _initialImage!.getPixel(x, y);
-  //         return ((pixel.r.toInt() + pixel.g.toInt() + pixel.b.toInt()) ~/ 3);
-  //       },
-  //     ),
-  //   );
-  //
-  //   // Apply 2D FFT
-  //   List<List<ComplexNumber>> frequencyDomain = _fft2D(intensityMatrix);
-  //
-  //   return frequencyDomain;
-  // }
-  //
-  // _centerFrequencyDomain(List<List<ComplexNumber>> frequencyDomain) {
-  //   int height = frequencyDomain.length;
-  //   int width = frequencyDomain[0].length;
-  //
-  //   List<List<ComplexNumber>> centered = List.generate(
-  //     height,
-  //     (_) => List.generate(width, (_) => ComplexNumber(0, 0)),
-  //   );
-  //
-  //   for (int y = 0; y < height; y++) {
-  //     for (int x = 0; x < width; x++) {
-  //       int newX = (x + width ~/ 2) % width;
-  //       int newY = (y + height ~/ 2) % height;
-  //
-  //       centered[newY][newX] = frequencyDomain[y][x];
-  //     }
-  //   }
-  //
-  //   return centered;
-  // }
-  //
-  // _fourierTransform() {
-  //   List<List<ComplexNumber>> frequencyDomain = _fftImage();
-  //   frequencyDomain = _centerFrequencyDomain(frequencyDomain);
-  //   int height = frequencyDomain.length;
-  //   int width = frequencyDomain[0].length;
-  //
-  //   Image newImage = Image(width: width, height: height);
-  //
-  //   // Find the maximum magnitude for scaling
-  //   double maxMagnitude = 0;
-  //   for (int y = 0; y < height; y++) {
-  //     for (int x = 0; x < width; x++) {
-  //       double magnitude = frequencyDomain[y][x].magnitude;
-  //       maxMagnitude = max(maxMagnitude, magnitude);
-  //     }
-  //   }
-  //
-  //   // Visualize the magnitudes
-  //   for (int y = 0; y < height; y++) {
-  //     for (int x = 0; x < width; x++) {
-  //       double magnitude = frequencyDomain[y][x].magnitude;
-  //
-  //       // Apply log scaling for better visualization
-  //       double scaledMagnitude = log(1 + magnitude) / log(1 + maxMagnitude);
-  //       int intensity = (scaledMagnitude * 255).clamp(0, 255).toInt();
-  //
-  //       // Set the pixel value
-  //       newImage.setPixel(x, y, ColorRgb8(intensity, intensity, intensity));
-  //     }
-  //   }
-  //
-  //   return newImage;
-  // }
-  //
-  // List<ComplexNumber> _ifft(List<ComplexNumber> input) {
-  //   int n = input.length;
-  //
-  //   // Base case: single element
-  //   if (n == 1) return [input[0]];
-  //
-  //   // Split input into even and odd indices
-  //   List<ComplexNumber> even = [for (int i = 0; i < n; i += 2) input[i]];
-  //   List<ComplexNumber> odd = [for (int i = 1; i < n; i += 2) input[i]];
-  //
-  //   // Recursively compute IFFT for both halves
-  //   List<ComplexNumber> ifftEven = _ifft(even);
-  //   List<ComplexNumber> ifftOdd = _ifft(odd);
-  //
-  //   // Combine the results
-  //   List<ComplexNumber> output = List.filled(n, ComplexNumber(0, 0));
-  //   for (int k = 0; k < n ~/ 2; k++) {
-  //     double angle = 2 * pi * k / n; // Positive sign for IFFT
-  //     ComplexNumber twiddle =
-  //         ComplexNumber(cos(angle), sin(angle)) * ifftOdd[k];
-  //
-  //     output[k] = ifftEven[k] + twiddle;
-  //     output[k + n ~/ 2] = ifftEven[k] - twiddle;
-  //   }
-  //
-  //   // Normalize by the number of points
-  //   for (int i = 0; i < n; i++) {
-  //     output[i] = output[i] / n;
-  //   }
-  //
-  //   return output;
-  // }
-  //
-  // List<List<ComplexNumber>> _ifft2D(List<List<ComplexNumber>> frequencyDomain) {
-  //   int width = frequencyDomain[0].length;
-  //   int height = frequencyDomain.length;
-  //
-  //   // Apply IFFT row-wise
-  //   List<List<ComplexNumber>> rowTransformed = List.generate(
-  //     height,
-  //     (y) => _ifft(frequencyDomain[y]),
-  //   );
-  //
-  //   // Transpose the result to apply IFFT column-wise
-  //   List<List<ComplexNumber>> transposed = List.generate(
-  //     width,
-  //     (x) => [for (int y = 0; y < height; y++) rowTransformed[y][x]],
-  //   );
-  //
-  //   // Apply IFFT column-wise
-  //   List<List<ComplexNumber>> columnTransformed = List.generate(
-  //     width,
-  //     (x) => _ifft(transposed[x]),
-  //   );
-  //
-  //   // Transpose back to original orientation
-  //   return List.generate(
-  //     height,
-  //     (y) => [for (int x = 0; x < width; x++) columnTransformed[x][y]],
-  //   );
-  // }
-  //
-  // _fourierTransformInverse() {
-  //   // Step 1: Get the frequency domain
-  //   List<List<ComplexNumber>> frequencyDomain = _fftImage();
-  //
-  //   // Step 2: Center the frequency domain for filtering
-  //   frequencyDomain = _centerFrequencyDomain(frequencyDomain);
-  //
-  //   // Step 3: Apply a low-pass filter
-  //   int height = frequencyDomain.length;
-  //   int width = frequencyDomain[0].length;
-  //   int centerX = width ~/ 2;
-  //   int centerY = height ~/ 2;
-  //   int radius = min(width, height) ~/ 4; // Define a cutoff radius
-  //
-  //   for (int y = 0; y < height; y++) {
-  //     for (int x = 0; x < width; x++) {
-  //       // Compute distance from center
-  //       double distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
-  //       if (distance > radius) {
-  //         frequencyDomain[y][x] =
-  //             ComplexNumber(0, 0); // Zero out high frequencies
-  //       }
-  //     }
-  //   }
-  //
-  //   // Step 4: De-center the frequency domain after filtering
-  //   frequencyDomain = _centerFrequencyDomain(frequencyDomain);
-  //
-  //   // Step 5: Perform IFFT to return to the spatial domain
-  //   List<List<ComplexNumber>> spatialDomain = _ifft2D(frequencyDomain);
-  //
-  //   // Step 6: Convert spatial domain to an image
-  //   Image newImage = Image(width: width, height: height);
-  //
-  //   // Normalize pixel intensities
-  //   double minIntensity = double.infinity;
-  //   double maxIntensity = double.negativeInfinity;
-  //
-  //   for (int y = 0; y < height; y++) {
-  //     for (int x = 0; x < width; x++) {
-  //       double value = spatialDomain[y][x].real;
-  //       if (value < minIntensity) minIntensity = value;
-  //       if (value > maxIntensity) maxIntensity = value;
-  //     }
-  //   }
-  //
-  //   for (int y = 0; y < height; y++) {
-  //     for (int x = 0; x < width; x++) {
-  //       double value = spatialDomain[y][x].real;
-  //
-  //       // Normalize to [0, 1]
-  //       double normalized =
-  //           (value - minIntensity) / (maxIntensity - minIntensity);
-  //
-  //       // Scale to [0, 255]
-  //       int intensity = (normalized * 255).clamp(0, 255).toInt();
-  //
-  //       newImage.setPixel(x, y, ColorRgb8(intensity, intensity, intensity));
-  //     }
-  //   }
-  //
-  //   return newImage;
-  // }
-
   List<ComplexNumber> _fft(List<ComplexNumber> input) {
     int n = input.length;
 
@@ -1438,6 +1184,26 @@ class ImageProcessor {
     );
   }
 
+  List<List<ComplexNumber>> _computeFFT(Image image) {
+    int width = image.width;
+    int height = image.height;
+
+    // Convert the image to a grayscale intensity matrix
+    List<List<int>> intensityMatrix = List.generate(
+      height,
+      (y) => List.generate(
+        width,
+        (x) {
+          Pixel pixel = image.getPixel(x, y);
+          return ((pixel.r.toInt() + pixel.g.toInt() + pixel.b.toInt()) ~/ 3);
+        },
+      ),
+    );
+
+    // Apply 2D FFT
+    return _fft2D(intensityMatrix);
+  }
+
   List<List<ComplexNumber>> _centerFrequencyDomain(
       List<List<ComplexNumber>> frequencyDomain) {
     int height = frequencyDomain.length;
@@ -1460,16 +1226,17 @@ class ImageProcessor {
     return centered;
   }
 
-  Image _fourierTransform() {
-    int width = _initialImage!.width;
-    int height = _initialImage!.height;
+  _fourierTransform() {
+    Image inputImage = _rgbToGray();
+    int width = inputImage.width;
+    int height = inputImage.height;
 
     List<List<int>> intensityMatrix = List.generate(
       height,
       (y) => List.generate(
         width,
         (x) {
-          Pixel pixel = _initialImage!.getPixel(x, y);
+          Pixel pixel = inputImage.getPixel(x, y);
           return ((pixel.r.toInt() + pixel.g.toInt() + pixel.b.toInt()) ~/ 3);
         },
       ),
@@ -1500,43 +1267,15 @@ class ImageProcessor {
     return newImage;
   }
 
-  Image _fourierTransformInverse() {
-    Image inputImage = _fourierTransform();
-    int width = inputImage.width;
-    int height = inputImage.height;
-
-    List<List<int>> intensityMatrix = List.generate(
-      height,
-      (y) => List.generate(
-        width,
-        (x) {
-          Pixel pixel = inputImage.getPixel(x, y);
-          return ((pixel.r.toInt() + pixel.g.toInt() + pixel.b.toInt()) ~/ 3);
-        },
-      ),
-    );
-
-    List<List<ComplexNumber>> frequencyDomain = _fft2D(intensityMatrix);
-    frequencyDomain = _centerFrequencyDomain(frequencyDomain);
-
-    int centerX = width ~/ 2;
-    int centerY = height ~/ 2;
-    int radius = min(width, height) ~/ 4;
-
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-        double distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
-        if (distance > radius) {
-          frequencyDomain[y][x] = ComplexNumber(0, 0);
-        }
-      }
-    }
-
-    frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+  Image _inverseFFT(List<List<ComplexNumber>> frequencyDomain) {
+    // Perform IFFT to get the spatial domain
     List<List<ComplexNumber>> spatialDomain = _ifft2D(frequencyDomain);
 
+    int height = spatialDomain.length;
+    int width = spatialDomain[0].length;
     Image newImage = Image(width: width, height: height);
 
+    // Normalize pixel intensities
     double minIntensity = double.infinity;
     double maxIntensity = double.negativeInfinity;
 
@@ -1551,9 +1290,14 @@ class ImageProcessor {
     for (int y = 0; y < height; y++) {
       for (int x = 0; x < width; x++) {
         double value = spatialDomain[y][x].real;
+
+        // Normalize to [0, 1]
         double normalized =
             (value - minIntensity) / (maxIntensity - minIntensity);
+
+        // Scale to [0, 255]
         int intensity = (normalized * 255).clamp(0, 255).toInt();
+
         newImage.setPixel(x, y, ColorRgb8(intensity, intensity, intensity));
       }
     }
@@ -1561,16 +1305,17 @@ class ImageProcessor {
     return newImage;
   }
 
-  List<List<ComplexNumber>> idealLowPassFilter(
-    List<List<ComplexNumber>> frequencyDomain,
-    double radius,
-  ) {
+  _idealLowPassFilter(double radius) {
+    List<List<ComplexNumber>> frequencyDomain = _computeFFT(_rgbToGray());
+    frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+
     int height = frequencyDomain.length;
     int width = frequencyDomain[0].length;
     int centerX = width ~/ 2;
     int centerY = height ~/ 2;
 
-    return List.generate(height, (y) {
+    List<List<ComplexNumber>> filteredFrequencyDomain =
+        List.generate(height, (y) {
       return List.generate(width, (x) {
         double distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
         return (distance <= radius)
@@ -1578,18 +1323,22 @@ class ImageProcessor {
             : ComplexNumber(0, 0);
       });
     });
+
+    filteredFrequencyDomain = _centerFrequencyDomain(filteredFrequencyDomain);
+    return _inverseFFT(filteredFrequencyDomain);
   }
 
-  List<List<ComplexNumber>> idealHighPassFilter(
-    List<List<ComplexNumber>> frequencyDomain,
-    double radius,
-  ) {
+  _idealHighPassFilter(double radius) {
+    List<List<ComplexNumber>> frequencyDomain = _computeFFT(_rgbToGray());
+    frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+
     int height = frequencyDomain.length;
     int width = frequencyDomain[0].length;
     int centerX = width ~/ 2;
     int centerY = height ~/ 2;
 
-    return List.generate(height, (y) {
+    List<List<ComplexNumber>> filteredFrequencyDomain =
+        List.generate(height, (y) {
       return List.generate(width, (x) {
         double distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
         return (distance > radius)
@@ -1597,18 +1346,22 @@ class ImageProcessor {
             : ComplexNumber(0, 0);
       });
     });
+
+    filteredFrequencyDomain = _centerFrequencyDomain(filteredFrequencyDomain);
+    return _inverseFFT(filteredFrequencyDomain);
   }
 
-  List<List<ComplexNumber>> gaussianLowPassFilter(
-    List<List<ComplexNumber>> frequencyDomain,
-    double sigma,
-  ) {
+  _gaussianLowPassFilter(double sigma) {
+    List<List<ComplexNumber>> frequencyDomain = _computeFFT(_rgbToGray());
+    frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+
     int height = frequencyDomain.length;
     int width = frequencyDomain[0].length;
     int centerX = width ~/ 2;
     int centerY = height ~/ 2;
 
-    return List.generate(height, (y) {
+    List<List<ComplexNumber>> filteredFrequencyDomain =
+        List.generate(height, (y) {
       return List.generate(width, (x) {
         double distanceSquared =
             pow(x - centerX, 2) + pow(y - centerY, 2).toDouble();
@@ -1616,18 +1369,22 @@ class ImageProcessor {
         return frequencyDomain[y][x] * ComplexNumber(filterValue, 0);
       });
     });
+
+    filteredFrequencyDomain = _centerFrequencyDomain(filteredFrequencyDomain);
+    return _inverseFFT(filteredFrequencyDomain);
   }
 
-  List<List<ComplexNumber>> gaussianHighPassFilter(
-    List<List<ComplexNumber>> frequencyDomain,
-    double sigma,
-  ) {
+  _gaussianHighPassFilter(double sigma) {
+    List<List<ComplexNumber>> frequencyDomain = _computeFFT(_rgbToGray());
+    frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+
     int height = frequencyDomain.length;
     int width = frequencyDomain[0].length;
     int centerX = width ~/ 2;
     int centerY = height ~/ 2;
 
-    return List.generate(height, (y) {
+    List<List<ComplexNumber>> filteredFrequencyDomain =
+        List.generate(height, (y) {
       return List.generate(width, (x) {
         double distanceSquared =
             pow(x - centerX, 2) + pow(y - centerY, 2).toDouble();
@@ -1635,19 +1392,22 @@ class ImageProcessor {
         return frequencyDomain[y][x] * ComplexNumber(filterValue, 0);
       });
     });
+
+    filteredFrequencyDomain = _centerFrequencyDomain(filteredFrequencyDomain);
+    return _inverseFFT(filteredFrequencyDomain);
   }
 
-  List<List<ComplexNumber>> butterworthLowPassFilter(
-    List<List<ComplexNumber>> frequencyDomain,
-    double radius,
-    int n,
-  ) {
+  _butterworthLowPassFilter(double radius, int n) {
+    List<List<ComplexNumber>> frequencyDomain = _computeFFT(_rgbToGray());
+    frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+
     int height = frequencyDomain.length;
     int width = frequencyDomain[0].length;
     int centerX = width ~/ 2;
     int centerY = height ~/ 2;
 
-    return List.generate(height, (y) {
+    List<List<ComplexNumber>> filteredFrequencyDomain =
+        List.generate(height, (y) {
       return List.generate(width, (x) {
         double distanceSquared =
             pow(x - centerX, 2) + pow(y - centerY, 2).toDouble();
@@ -1656,19 +1416,22 @@ class ImageProcessor {
         return frequencyDomain[y][x] * ComplexNumber(filterValue, 0);
       });
     });
+
+    filteredFrequencyDomain = _centerFrequencyDomain(filteredFrequencyDomain);
+    return _inverseFFT(filteredFrequencyDomain);
   }
 
-  List<List<ComplexNumber>> butterworthHighPassFilter(
-    List<List<ComplexNumber>> frequencyDomain,
-    double radius,
-    int n,
-  ) {
+  _butterworthHighPassFilter(double radius, int n) {
+    List<List<ComplexNumber>> frequencyDomain = _computeFFT(_rgbToGray());
+    frequencyDomain = _centerFrequencyDomain(frequencyDomain);
+
     int height = frequencyDomain.length;
     int width = frequencyDomain[0].length;
     int centerX = width ~/ 2;
     int centerY = height ~/ 2;
 
-    return List.generate(height, (y) {
+    List<List<ComplexNumber>> filteredFrequencyDomain =
+        List.generate(height, (y) {
       return List.generate(width, (x) {
         double distanceSquared =
             pow(x - centerX, 2) + pow(y - centerY, 2).toDouble();
@@ -1677,6 +1440,9 @@ class ImageProcessor {
         return frequencyDomain[y][x] * ComplexNumber(filterValue, 0);
       });
     });
+
+    filteredFrequencyDomain = _centerFrequencyDomain(filteredFrequencyDomain);
+    return _inverseFFT(filteredFrequencyDomain);
   }
 
   File? get initialImage => _initialImageFile;
